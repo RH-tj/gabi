@@ -67,8 +67,8 @@ ${CONTAINER_ENGINE} build -t "${IMAGE_NAME}" -f Dockerfile.integration .
 # Step 3: Pull supporting service images
 echo ""
 echo "Step 3: Pulling supporting service images..."
-echo "  - Pulling PostgreSQL image (public docker.io; no Red Hat registry login required)..."
-${CONTAINER_ENGINE} pull postgres:16-alpine
+echo "  - Pulling PostgreSQL image..."
+${CONTAINER_ENGINE} pull registry.redhat.io/rhel9/postgresql-16:9.6
 
 # Step 4: Load images into kind cluster
 echo ""
@@ -88,7 +88,7 @@ ${CONTAINER_ENGINE} exec "${CLUSTER_NAME}-control-plane" rm /gabi-test-image.tar
 rm /tmp/gabi-test-image.tar
 
 echo "  - Loading PostgreSQL image..."
-kind load docker-image postgres:16-alpine --name "${CLUSTER_NAME}"
+kind load docker-image registry.redhat.io/rhel9/postgresql-16:9.6 --name "${CLUSTER_NAME}"
 
 # Verify the integration test image was loaded correctly
 echo ""
