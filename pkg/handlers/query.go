@@ -206,11 +206,17 @@ func StreamQuery(cfg *gabi.Config) http.HandlerFunc {
 			keys[i] = cols[i]
 		}
 
+		flusher, canFlush := w.(http.Flusher)
 		bodyStarted := false
 		writeStreamFatal := func(logMsg string, err error) {
 			cfg.Logger.Errorf("%s: %s", logMsg, err)
 			if !bodyStarted {
 				_ = queryErrorResponse(w, err)
+			} else {
+				_, _ = w.Write([]byte("],\"error\":\"" + logMsg + "\"}\n"))
+				if canFlush {
+					flusher.Flush()
+				}
 			}
 		}
 
@@ -225,17 +231,16 @@ func StreamQuery(cfg *gabi.Config) http.HandlerFunc {
 
 		enc := json.NewEncoder(w)
 		if err := enc.Encode(keys); err != nil {
-			cfg.Logger.Errorf("Unable to write JSON header row: %s", err)
+			writeStreamFatal("Unable to write JSON header row", err)
 			return
 		}
 
-		flusher, canFlush := w.(http.Flusher)
 		row := make([]string, ncols)
 		rowNum := 0
 
 		for rows.Next() {
 			if err := rows.Scan(vals...); err != nil {
-				cfg.Logger.Errorf("Unable to process database rows: %s", err)
+				writeStreamFatal("Unable to process database rows", err)
 				return
 			}
 
@@ -249,11 +254,11 @@ func StreamQuery(cfg *gabi.Config) http.HandlerFunc {
 			}
 
 			if _, err := w.Write([]byte(",")); err != nil {
-				cfg.Logger.Errorf("Unable to write JSON row separator: %s", err)
+				writeStreamFatal("Unable to write JSON row separator", err)
 				return
 			}
 			if err := enc.Encode(row); err != nil {
-				cfg.Logger.Errorf("Unable to write JSON data row: %s", err)
+				writeStreamFatal("Unable to write JSON data row", err)
 				return
 			}
 
@@ -264,12 +269,12 @@ func StreamQuery(cfg *gabi.Config) http.HandlerFunc {
 		}
 
 		if err := rows.Err(); err != nil {
-			cfg.Logger.Errorf("Unable to process database rows: %s", err)
+			writeStreamFatal("Unable to process database rows", err)
 			return
 		}
 
 		if err := tx.Commit(); err != nil {
-			cfg.Logger.Errorf("Unable to commit database changes: %s", err)
+			writeStreamFatal("Unable to commit database changes", err)
 			return
 		}
 

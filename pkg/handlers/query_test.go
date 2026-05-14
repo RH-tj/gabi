@@ -652,7 +652,7 @@ func TestStreamQuery(t *testing.T) {
 			``,
 		},
 		{
-			"commit failure after streaming rows leaves body without closing trailer",
+			"commit failure after streaming rows writes error trailer",
 			func() (*sql.DB, sqlmock.Sqlmock) {
 				db, mock, _ := sqlmock.New()
 				return db, mock
@@ -669,12 +669,12 @@ func TestStreamQuery(t *testing.T) {
 				return bytes.NewBufferString(`{"query": "select 1;"}`)
 			},
 			http.StatusOK,
-			"{\"result\":[[\"?column?\"]\n,[\"1\"]\n",
-			`],"error":""}`,
-			`Unable to commit database changes`,
+			"{\"result\":[[\"?column?\"]\n,[\"1\"]\n],\"error\":\"Unable to commit database changes\"}\n",
+			``,
+			`Unable to commit database changes: stream commit failed`,
 		},
 		{
-			"row iteration error after stream started logs and does not append JSON error object",
+			"row iteration error after stream started writes error trailer",
 			func() (*sql.DB, sqlmock.Sqlmock) {
 				db, mock, _ := sqlmock.New()
 				return db, mock
@@ -693,8 +693,8 @@ func TestStreamQuery(t *testing.T) {
 				return bytes.NewBufferString(`{"query": "select * from test;"}`)
 			},
 			http.StatusOK,
-			"{\"result\":[[\"?column?\"]\n,[\"1\"]\n",
-			`"error":"stream row error"`,
+			"{\"result\":[[\"?column?\"]\n,[\"1\"]\n],\"error\":\"Unable to process database rows\"}\n",
+			``,
 			`Unable to process database rows: stream row error`,
 		},
 	}
