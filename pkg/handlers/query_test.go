@@ -669,7 +669,7 @@ func TestStreamQuery(t *testing.T) {
 				return bytes.NewBufferString(`{"query": "select 1;"}`)
 			},
 			http.StatusOK,
-			"{\"result\":[[\"?column?\"]\n,[\"1\"]\n],\"error\":\"Unable to commit database changes\"}\n",
+			"{\"result\":[[\"?column?\"]\n,[\"1\"]\n],\"error\":\"Unable to commit database changes\"\n}\n",
 			``,
 			`Unable to commit database changes: stream commit failed`,
 		},
@@ -693,7 +693,7 @@ func TestStreamQuery(t *testing.T) {
 				return bytes.NewBufferString(`{"query": "select * from test;"}`)
 			},
 			http.StatusOK,
-			"{\"result\":[[\"?column?\"]\n,[\"1\"]\n],\"error\":\"Unable to process database rows\"}\n",
+			"{\"result\":[[\"?column?\"]\n,[\"1\"]\n],\"error\":\"Unable to process database rows\"\n}\n",
 			``,
 			`Unable to process database rows: stream row error`,
 		},

@@ -184,7 +184,14 @@ const streamFlushInterval = 256
 // (no intermediate buffer) so that memory stays roughly O(row-width) instead of
 // O(total-result).
 //
-// Wire format: {"result":[ <newline-separated encoded rows> ],"error":""}
+// Wire format (success): {"result":[ <newline-separated encoded rows> ],"error":""}
+// Wire format (mid-stream error): {"result":[ ...partial rows... ],"error":"<message>"}
+//
+// Error contract: once the {"result":[ preamble has been written, the HTTP
+// status is irrevocably 200. Any subsequent failure (rows.Scan, rows.Err,
+// tx.Commit, encoding) writes a JSON error trailer so the response remains
+// valid JSON with a non-empty "error" field. Clients MUST check the "error"
+// field in the response body — not the HTTP status code — to detect failures.
 //
 // IMPORTANT: this handler must NOT be wrapped with http.TimeoutHandler, which
 // buffers all writes and defeats streaming. Use middleware.ContextTimeout instead
@@ -213,7 +220,9 @@ func StreamQuery(cfg *gabi.Config) http.HandlerFunc {
 			if !bodyStarted {
 				_ = queryErrorResponse(w, err)
 			} else {
-				_, _ = w.Write([]byte("],\"error\":\"" + logMsg + "\"}\n"))
+				_, _ = w.Write([]byte("],\"error\":"))
+				_ = json.NewEncoder(w).Encode(logMsg)
+				_, _ = w.Write([]byte("}\n"))
 				if canFlush {
 					flusher.Flush()
 				}
@@ -245,6 +254,9 @@ func StreamQuery(cfg *gabi.Config) http.HandlerFunc {
 			}
 
 			for i := range vals {
+				// Safe: vals[i] is always *sql.RawBytes — allocated exclusively via
+				// new(sql.RawBytes) above. The recovery middleware will catch the panic
+				// if this invariant is ever violated.
 				content := vals[i].(*sql.RawBytes)
 				if base64Mode&base64EncodeResults != 0 {
 					row[i] = cfg.Encoder.EncodeToString(*content)
@@ -269,6 +281,9 @@ func StreamQuery(cfg *gabi.Config) http.HandlerFunc {
 		}
 
 		if err := rows.Err(); err != nil {
+			if ctxErr := r.Context().Err(); ctxErr != nil {
+				cfg.Logger.Errorf("Context error (likely timeout): %s", ctxErr)
+			}
 			writeStreamFatal("Unable to process database rows", err)
 			return
 		}
